@@ -132,6 +132,11 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_sum_of_2\
+	$U/_sum_b\
+	$U/_sum_c\
+	$U/_test_sys_add\
+
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
