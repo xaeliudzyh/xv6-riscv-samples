@@ -8,13 +8,13 @@ int main(int argc, char *argv[]) {
     int fd[2];
     // Создание канала
     if (pipe(fd) == -1) {
-        fprintf(2, "Ошибка создания канала\n");
+        fprintf(2, "Error: pipe process failed\n");
         return 1;
     }
 
     int pid = fork(); // Создание дочернего процесса
     if (pid < 0) {
-        fprintf(2, "Ошибка создания процесса\n");
+        fprintf(2, "Error: child process failed\n");
         return 1;
     }
 
