@@ -1,3 +1,4 @@
+#include "procinfo.h"
 #include "types.h"
 #include "param.h"
 #include "memlayout.h"
@@ -6,6 +7,7 @@
 #include "proc.h"
 #include "defs.h"
 
+#define pr_inf_size sizeof(struct procinfo);
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -680,4 +682,63 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+
+uint64
+ps_listinfo(struct procinfo *plist, int lim) {
+    int tick = 0;  // Счетчик обработанных процессов
+    struct procinfo pr;  // Временная структура для хранения информации о процессе
+    uint64 add = 0;  // Адрес в пользовательском пространстве для копирования информации
+    argaddr(0, &add);
+    for (struct proc* pc = proc; pc < &proc[NPROC]; ++pc)
+    {
+        acquire(&pc->lock);  // Блокируем процесс для чтения
+        if (pc->state == UNUSED)   // Если процесс не используется, пропускаем его
+        {
+            release(&pc->lock);
+            continue;
+        }
+        tick++;
+        if(add)// Если указан адрес для записи
+        {
+            if (tick > lim)
+            {
+                release(&pc->lock);
+                return tick+1;  // Ошибка: буфер слишком мал
+            }
+            // Копирование имени процесса из pc в pr
+            strncpy(pr.name, pc->name, sizeof(pr.name));
+            // pc.name[sizeof(pr->name) - 1] = '\0';  // Обеспечиваем наличие нуль-терминатора
+            // Установка состояния процесса
+            pr.state = pc->state;
+
+            // Установка PID родительского процесса
+            if (pc->parent)
+                pr.parent_pid = pc->parent->pid;
+            else
+                pr.parent_pid = -1;
+
+            int temp_res = copyout(myproc()->pagetable, add, (char *) &pr, sizeof(pr));
+            if (temp_res < 0) {
+                release(&pc->lock);
+                return -2;
+            }
+            add += pr_inf_size;
+        }
+        release(&pc->lock);
+    }
+    return tick;
+}
+
+uint64
+sys_ps_listinfo(void)
+{
+    struct procinfo* pinfo;
+    int lim;
+
+    argaddr(0, (uint64*)&pinfo);
+    argint(1, &lim);
+    return ps_listinfo(pinfo, lim);
 }
