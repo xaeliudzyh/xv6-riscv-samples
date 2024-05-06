@@ -282,12 +282,10 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
-
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
   }
-
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -295,33 +293,34 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
-
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
-
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
+//  int index;
+  for (i = 0; i < NOMUTEX; i++) {//struct mutex *current_mutex = p->table_mutex[index];
+      np->table_mutex[i] = p->table_mutex[i];
+      if (p->table_mutex[i])
+      {
+          acquire(&p->table_mutex[i]->sp_lock);
+          p->table_mutex[i]->lock++;
+          release(&p->table_mutex[i]->sp_lock);
+      }
+  }
   np->cwd = idup(p->cwd);
-
   safestrcpy(np->name, p->name, sizeof(p->name));
-
   pid = np->pid;
-
   release(&np->lock);
-
   acquire(&wait_lock);
   np->parent = p;
   release(&wait_lock);
-
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-
   return pid;
 }
 
@@ -350,6 +349,10 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+  for (int i = 0; i < NOMUTEX; ++i)
+      if (p->table_mutex[i])
+          destroy_mutex(i);
+
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

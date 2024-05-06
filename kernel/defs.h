@@ -70,6 +70,15 @@ void            log_write(struct buf*);
 void            begin_op(void);
 void            end_op(void);
 
+// mutex.c
+void mutinit();
+int validate_mutex(int);
+int lock_mutex(int);
+int unlock_mutex(int);
+
+int generate_mutex(void);
+int destroy_mutex(int);
+
 // pipe.c
 int             pipealloc(struct file**, struct file**);
 void            pipeclose(struct pipe*, int);
@@ -106,6 +115,8 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+int             add_new_mutex(int mutex_desc);
+
 
 // swtch.S
 void            swtch(struct context*, struct context*);

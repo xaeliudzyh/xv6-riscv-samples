@@ -1,4 +1,7 @@
 // Saved registers for kernel context switches.
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "mutex.h"
 struct context {
   uint64 ra;
   uint64 sp;
@@ -104,4 +107,5 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  struct mutex * table_mutex[NOMUTEX];
 };
