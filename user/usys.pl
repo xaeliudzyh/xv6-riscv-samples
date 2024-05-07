@@ -36,3 +36,7 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+entry("generate_mut");
+entry("lock_mut");
+entry("unlock_mut");
+entry("destroy_mut");
