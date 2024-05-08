@@ -416,6 +416,46 @@ bmap(struct inode *ip, uint bn)
     brelse(bp);
     return addr;
   }
+  bn -= NINDIRECT;
+  uint primary_index = bn / NINDIRECT, secondary_index = bn % NINDIRECT;
+  const uint incrNDIRECT=NDIRECT + 1;
+  if (bn < NINDIRECT * NINDIRECT)
+  {
+      // проверка и возможное выделение блока для первого уровня индиректности
+      if (!(addr = ip->addrs[incrNDIRECT]))
+      {
+          addr = balloc(ip->dev);
+          if (!(addr)) return 0; // Не удалось выделить блок
+          ip->addrs[incrNDIRECT] = addr;
+      }
+      struct buf* primary_buf = bread(ip->dev, addr);
+      // проверка и возможное выделение блока для второго уровня индиректности
+      if (!(addr = ((uint*)primary_buf->data)[primary_index]))
+      {
+          addr = balloc(ip->dev);
+          if (addr)
+          {
+              ((uint*)primary_buf->data)[primary_index] = addr;
+              log_write(primary_buf); // записываем изменения в лог
+          }
+      }
+      brelse(primary_buf); // тут освобождаем первичный буфер
+      if (!addr) return 0;
+      struct buf* secondary_buf = bread(ip->dev, addr);
+      // проверка и возможное выделение конечного блока данных
+      if ((addr = secondary_data[secondary_index]) == 0)
+      {
+          uint* secondary_data = (uint*)secondary_buf->data;
+          addr = balloc(ip->dev);
+          if (addr)
+          {
+              secondary_data[secondary_index] = addr;
+              log_write(secondary_buf); // тут тоже записываем изменения в лог
+          }
+      }
+      brelse(secondary_buf); // освобождение вторичного буфера
+      return addr;
+  }
 
   panic("bmap: out of range");
 }
