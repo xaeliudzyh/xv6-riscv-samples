@@ -443,9 +443,9 @@ bmap(struct inode *ip, uint bn)
       if (!addr) return 0;
       struct buf* secondary_buf = bread(ip->dev, addr);
       // проверка и возможное выделение конечного блока данных
+      uint* secondary_data = (uint*)secondary_buf->data;
       if ((addr = secondary_data[secondary_index]) == 0)
       {
-          uint* secondary_data = (uint*)secondary_buf->data;
           addr = balloc(ip->dev);
           if (addr)
           {
