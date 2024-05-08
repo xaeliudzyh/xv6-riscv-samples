@@ -26,7 +26,7 @@ struct inode {
   short minor;
   short nlink;
   uint size;
-  uint addrs[NDIRECT+1];
+  uint addrs[NDIRECT+2]; //увеличение кол-ва адресов которые может хранить inode, чтобы увелич макс возможный размер файла
 };
 
 // map major device number to device functions.
