@@ -304,18 +304,19 @@ create(char *path, short type, short major, short minor)
 uint64
 sys_open(void)
 {
-  char path[MAXPATH];
-  int fd, omode;
+  char path[MAXPATH+1],temp_p[MAXPATH]; // для того, чтобы оставить место для нуль-терминатора
+  int fd, omode, timer=0;
   struct file *f;
   struct inode *ip;
   int n;
-
   argint(1, &omode);
   if((n = argstr(0, path, MAXPATH)) < 0)
     return -1;
 
   begin_op();
 
+  long long path_length= strlen(path); // xranim dlinu puti
+  int indicator=path_length;;
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
@@ -323,16 +324,60 @@ sys_open(void)
       return -1;
     }
   } else {
-    if((ip = namei(path)) == 0){
+    if(!(ip = namei(path))){
       end_op();
       return -1;
     }
     ilock(ip);
-    if(ip->type == T_DIR && omode != O_RDONLY){
-      iunlockput(ip);
-      end_op();
-      return -1;
+    short flag = ip->type;
+    if(!(omode & O_NOFOLLOW)) // проверяем, что флаг O_NOFOLLOW не установлен
+    {
+      memmove(temp_p,path,path_length); // копируем путь в временный буфер
+      while (flag==T_SYMLINK)
+      {
+          while (!(path[indicator] == '/') && indicator >= 0)
+          {
+              path[indicator] = 0; // заменяем символ на нуль-терминатор
+              indicator--;
+          }
+          if (indicator) path[indicator] = 0; // если не достигли начала строки, добавляем нуль-терминатор
+          char buf[MAXPATH]; // буфер для чтения содержимого символической ссылки
+          readi(ip, 0, (uint64)buf, 0, ip->size);
+          buf[ip->size] = 0;
+          if (buf[0] != '/') // если ссылка относительная
+          {
+              if (strlen(temp_p)) temp_p[strlen(temp_p)] = '/'; // добавляем слэш в конец пути, если он не пустой
+              memmove(temp_p + strlen(temp_p), buf, ip->size); // добавляем содержимое буфера к пути
+              memmove(buf, temp_p, strlen(temp_p)); // копируем обновленный путь в буфер
+          }
+          else
+          {
+              memmove(temp_p, buf, ip->size); // копируем абсолютный путь из буфера в temp_p
+              temp_p[ip->size] = 0; // добавляем нуль-терминатор
+          }
+          iunlockput(ip);
+          if (!(ip = namei(buf))) // ищем новый inode по пути в буфере
+          {
+              end_op();
+              return -1; // если не удалось найти inode - ошибка епта
+          }
+          timer++;
+          if (timer > MACREC)
+          {
+              end_op();
+              return -1;
+          }
+          ilock(ip); // захватываем новый inode
+          flag = ip->type; // обновляем флаг
+      }
     }
+      if (omode != O_RDONLY && ip->type == T_DIR && omode != O_NOFOLLOW)
+      {// если файл это каталог, и флаги открытия не соответствуют условиям
+          //if)
+              iunlockput(ip);
+              end_op();
+              return -1; // ошибка, каталог же не может быть открыт для записи без O_NOFOLLOW
+      }
   }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
@@ -503,3 +548,70 @@ sys_pipe(void)
   }
   return 0;
 }
+
+
+// функция для создания символической ссылки
+uint64 sys_symlink(void)
+{
+    struct inode* inode_ptr; // указатель на inode
+    char link_target[MAXPATH],link_name[MAXPATH]; // цель и имя ссылки
+
+    // получение аргументов системного вызова
+    if (argstr(0, link_target, MAXPATH) < 0 || argstr(1, link_name, MAXPATH) < 0) return -1; // ошибка, если не удалось получить аргументы
+    begin_op();// начало операции файловой системы
+
+    // проверка, сделается ли новыый inode для символической ссылки
+    if ((inode_ptr = create(link_name, T_SYMLINK, 0, 0)))
+    {
+        inode_ptr->type = T_SYMLINK; // устанавливаем тип inode как символическая ссылка
+
+        // запись цели символической ссылки в inode
+        writei(inode_ptr, 0, (uint64) link_target, 0, strlen(link_target));
+
+        iunlockput(inode_ptr); // освобождаем inode
+        end_op();
+
+        return 0;
+    }
+    else //если нет
+    {
+        end_op();
+        return -1; // ошибка
+    }
+}
+
+// функция для чтения символической ссылки
+uint64 sys_readlink(void)
+{
+    char link_path[MAXPATH]; // путь к символической ссылке
+    char* buffer; // буфер для хранения цели ссылки
+    uint64 buffer_addr;
+
+    // получение аргументов системного вызова
+    if (argstr(0, link_path, MAXPATH) < 0) return -1; // ошибка, если не удалось получить путь
+
+    argaddr(1, &buffer_addr); // получение адреса буфера
+    buffer = (char*)buffer_addr;
+
+    struct inode* inode_ptr;
+    begin_op();
+
+    // поиск inode по указанному пути
+    if ((inode_ptr = namei(link_path)))
+    {
+        ilock(inode_ptr); // захватываем inode
+
+        // чтение цели символической ссылки в буфер
+        readi(inode_ptr, 1, (uint64) buffer, 0, inode_ptr->size);
+
+        iunlock(inode_ptr);
+        end_op();
+        return 0;
+    }
+    else //если не находится
+    {
+        end_op();
+        return -1; // ошибка, если inode не найден
+    }
+}
+
