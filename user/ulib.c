@@ -145,3 +145,14 @@ memcpy(void *dst, const void *src, uint n)
 {
   return memmove(dst, src, n);
 }
+
+int
+lstat(const char *n, struct stat *st)
+{
+    int fd, r;
+    fd = open(n, O_NOFOLLOW);
+    if(fd < 0) return -1;
+    r = fstat(fd, st);
+    close(fd);
+    return r;
+}

@@ -22,8 +22,11 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+int symlink(const char*, const char*);
+int readlink(const char*, char*);
 
 // ulib.c
+int lstat(const char*, struct stat*); //(https://linux.die.net/man/2/lstat)крч если файл является символической ссылкой, lstat возвращает информацию о самой ссылкеь
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
 void *memmove(void*, const void*, int);

@@ -1,3 +1,5 @@
+#include "../kernel/param.h"
+#include "../kernel/fcntl.h"
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "user/user.h"
@@ -25,12 +27,13 @@ fmtname(char *path)
 void
 ls(char *path)
 {
-  char buf[512], *p;
-  int fd;
+  char buf[512], *p, symlink_target[MAXPATH]; // буфер для хранения цели символической ссылки
+  int fd,symlink_target_len; // длина цели символической ссылки
   struct dirent de;
   struct stat st;
 
-  if((fd = open(path, 0)) < 0){
+  if((fd = open(path, O_NOFOLLOW)) < 0) // открываем файл с флагом O_NOFOLLOW, чтобы не разыменовывать символические ссылки
+  {
     fprintf(2, "ls: cannot open %s\n", path);
     return;
   }
@@ -43,6 +46,19 @@ ls(char *path)
 
   switch(st.type){
   case T_DEVICE:
+  case T_SYMLINK:
+      // попытка чтения цели символической ссылки
+      if ((symlink_target_len = readlink(path, symlink_target)) < 0) printf("%s %d %d %l --> unknown target\n", fmtname(path), st.type, st.ino, st.size);
+      else
+      {
+          if (symlink_target_len < MAXPATH)
+          {
+              symlink_target[symlink_target_len] = '\0'; // добавление нуль-терминатора в конец буфера
+              printf("%s %d %d %l --> %s\n", fmtname(path), st.type, st.ino, st.size,
+                     symlink_target); // вывод информации о символической ссылке
+          }
+      }
+      break;
   case T_FILE:
     printf("%s %d %d %l\n", fmtname(path), st.type, st.ino, st.size);
     break;
@@ -60,11 +76,24 @@ ls(char *path)
         continue;
       memmove(p, de.name, DIRSIZ);
       p[DIRSIZ] = 0;
-      if(stat(buf, &st) < 0){
+        // используем lstat для получения информации о символических ссылках без их разыменования
+      if(lstat(buf, &st) < 0)
+      {
         printf("ls: cannot stat %s\n", buf);
         continue;
       }
-      printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      if (st.type == T_SYMLINK)
+      {
+          // показать цель ссылки
+          if ((symlink_target_len = readlink(path, symlink_target)) < 0) printf("%s %d %d %l --> unknown target\n", fmtname(path), st.type, st.ino, st.size);
+          else
+          {
+              if (symlink_target_len < MAXPATH) symlink_target[symlink_target_len] = '\0'; // добавление нуль-терминатора
+              printf("%s %d %d %l --> %s\n", fmtname(path), st.type, st.ino, st.size, symlink_target); // вывод цели символической ссылки
+          }
+      }
+      else printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+
     }
     break;
   }
