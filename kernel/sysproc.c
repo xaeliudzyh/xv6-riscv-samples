@@ -89,3 +89,40 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// системный вызов для проверки и обнуления атрибута A
+uint64
+sys_pgaccess(void)
+{
+    uint64 page_addr, res_addr;
+    int size, npages;
+
+    // получить аргументы системного вызова
+    argaddr(0, &page_addr);
+    argint(1, &size);
+    argaddr(2, &res_addr);
+
+    // вычислить количество страниц
+    npages = (size + PGSIZE - 1) / PGSIZE; pagetable_t cur_pt = myproc()->pagetable;
+    // массив для хранения результатов доступа к страницам
+    char accessed[npages];
+    memset(accessed, 0, sizeof(accessed));
+    for (int i = 0; i < npages; ++i)
+    {
+        pte_t *pte = walk(cur_pt, page_addr, 0);
+        if (pte && (*pte & PTE_A))
+        {
+            // установить бит доступа для страницы
+            accessed[i] = 1;
+            // обнулить атрибут A
+            *pte &= ~PTE_A;
+        }
+        page_addr += PGSIZE;
+    }
+
+    // скопировать результаты в пространство пользователя
+    if (copyout(cur_pt, res_addr, (char *)accessed, sizeof(accessed)) < 0)
+        return -1;
+
+    return 0;
+}

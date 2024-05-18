@@ -437,3 +437,49 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+// вывод флага PTE
+void print_pte_flag(pte_t pte, uint64 flag, char *flag_name)
+{
+    if (pte & flag) printf("%s", flag_name);
+    else printf(".");
+}
+
+// вывод всех флагов PTE
+void print_pte_flags(pte_t pte)
+{
+    printf("[");
+    print_pte_flag(pte, PTE_V, "V");
+    print_pte_flag(pte, PTE_R, "R");
+    print_pte_flag(pte, PTE_W, "W");
+    print_pte_flag(pte, PTE_X, "X");
+    print_pte_flag(pte, PTE_U, "U");
+    printf("]");
+}
+
+// рекурсивный вывод таблицы страниц
+void vmprint(pagetable_t pagetable, int level)
+{
+    if (level == 1) printf("page table %p\n", pagetable);
+    for (int i = 0; i < 512; i++)
+    {
+        pte_t pte = pagetable[i];
+        if (pte & PTE_V)
+        {
+            for (int j = level; j > 1; j--) printf(".. ");
+            uint64 pa = PTE2PA(pte);
+            printf("%d: pte %p pa %p ", i, pte, pa);
+            print_pte_flags(pte);
+            printf("\n");
+            if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) vmprint((pagetable_t)pa, level + 1);
+        }
+    }
+}
+
+// системный вызов для вывода таблицы страниц
+uint64 sys_vmprint(void)
+{
+    struct proc *p = myproc();
+    vmprint(p->pagetable, 1);
+    return 0;
+}
