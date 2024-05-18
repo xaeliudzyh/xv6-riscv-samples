@@ -89,3 +89,39 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+// системный вызов для проверки доступа к страницам памяти и обнуления флага PTE_A
+uint64 sys_pgaccess(void) {
+    uint64 start_addr;
+    uint64 user_buffer;
+    int num_pages;
+
+    // получение аргументов системного вызова
+    argaddr(0, &start_addr), argint(1, &num_pages), argaddr(2, &user_buffer);
+    // получение таблицы страниц текущего процесса
+    pagetable_t pagetable = myproc()->pagetable;
+    // массив для хранения результатов проверки доступа
+    char access_status[num_pages];
+    // цикл по всем страницам
+    for (int page_idx = 0; page_idx < num_pages; page_idx++)
+    {
+        // получение PTE для текущей страницы
+        pte_t *pte_entry = walk(pagetable, start_addr + page_idx * PGSIZE, 0);
+        // проверка установленного флага PTE_A (доступ)
+        if (*pte_entry & PTE_A)
+        {
+            access_status[page_idx] = 1;  // страница была доступна
+            // обнуление флага PTE_A после проверки
+            *pte_entry &= ~PTE_A;
+        }
+        else
+            access_status[page_idx] = 0;  // доступ к странице не был зафиксирован
+    }
+
+    // копирование результатов проверки в пользовательское пространство
+    if (copyout(pagetable, user_buffer, access_status, sizeof(access_status)) < 0)
+        // ошибка копирования в пространство пользователя
+        return -1;
+
+    // успешное выполнение системного вызова
+    return 0;
+}

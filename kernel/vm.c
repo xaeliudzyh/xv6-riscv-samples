@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -436,4 +438,66 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+
+
+// вывод всех флагов PTE
+void display_pte_flags(pte_t pte) {
+    printf("[");
+    if (pte & PTE_V) printf("V");
+    else printf(".");
+    if (pte & PTE_R) printf("R");
+    else printf(".");
+    if (pte & PTE_W) printf("W");
+    else printf(".");
+    if (pte & PTE_X) printf("X");
+    else printf(".");
+    if (pte & PTE_U) printf("U");
+    else printf(".");
+    printf("]");
+}
+
+// рекурсивный вывод таблицы страниц
+void vmprint(pagetable_t pt, int is_root) {
+    // статическая переменная для отслеживания уровня вложенности
+    static int indent_level = 2;
+
+    // если это корневая таблица страниц, выводим заголовок
+    if (is_root) {
+        printf("root page table at %p\n", pt);
+    }
+
+    // проходим по всем записям таблицы страниц (всего 512 записей)
+    for (int idx = 0; idx < 512; idx++) {
+        pte_t entry = pt[idx];  // получаем запись таблицы страниц по индексу
+
+        // проверяем, действительна ли запись (PTE_V установлен)
+        if (entry & PTE_V)
+        {
+            // если запись указывает на физическую страницу (установлены PTE_R, PTE_W или PTE_X)
+            if (entry & (PTE_R | PTE_W | PTE_X))
+            {
+                indent_level = 0;  // сбрасываем уровень вложенности для физической страницы
+                for (int indent = 2; indent > indent_level; indent--) printf(".. ");  // выводим отступы для наглядности
+                printf("..%d: pte %p pa %p\n", idx, entry, PTE2PA(entry));  // выводим индекс, PTE и физический адрес
+                indent_level = 2;  // восстанавливаем уровень вложенности
+            }
+            else
+            {
+                // если запись указывает на подтаблицу страниц (PTE_R, PTE_W и PTE_X не установлены)
+                uint64 subtable = PTE2PA(entry);  // получаем физический адрес подтаблицы
+                for (int indent = 2; indent > indent_level; indent--) printf(".. ");  // выводим отступы для наглядности
+                printf("..%d: pte %p pa %p\n", idx, entry, subtable);  // выводим индекс, PTE и физический адрес подтаблицы
+                indent_level--;  // увеличиваем уровень вложенности для подтаблицы
+                vmprint((pagetable_t) subtable, 0);  // рекурсивно вызываем vmprint для подтаблицы
+            }
+        }
+    }
+}
+
+// системный вызов для вывода таблицы страниц
+uint64 sys_vmprint(void) {
+    vmprint(myproc()->pagetable, 1);
+    return 0;
 }
