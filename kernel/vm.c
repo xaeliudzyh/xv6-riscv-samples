@@ -442,48 +442,62 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 
 
 
-// вывод флага PTE
-void print_pte_flag(pte_t pte, uint64 flag, char *flag_name)
-{
-    if (pte & flag) printf("%s", flag_name);
-    else printf(".");
-}
-
 // вывод всех флагов PTE
-void print_pte_flags(pte_t pte)
-{
+void display_pte_flags(pte_t pte) {
     printf("[");
-    print_pte_flag(pte, PTE_V, "V");
-    print_pte_flag(pte, PTE_R, "R");
-    print_pte_flag(pte, PTE_W, "W");
-    print_pte_flag(pte, PTE_X, "X");
-    print_pte_flag(pte, PTE_U, "U");
+    if (pte & PTE_V) printf("V");
+    else printf(".");
+    if (pte & PTE_R) printf("R");
+    else printf(".");
+    if (pte & PTE_W) printf("W");
+    else printf(".");
+    if (pte & PTE_X) printf("X");
+    else printf(".");
+    if (pte & PTE_U) printf("U");
+    else printf(".");
     printf("]");
 }
 
 // рекурсивный вывод таблицы страниц
-void vmprint(pagetable_t pagetable, int level)
-{
-    if (level == 1) printf("page table %p\n", pagetable);
-    for (int i = 0; i < 512; i++)
-    {
-        pte_t pte = pagetable[i];
-        if (pte & PTE_V)
+void vmprint(pagetable_t pt, int is_root) {
+    // статическая переменная для отслеживания уровня вложенности
+    static int indent_level = 2;
+
+    // если это корневая таблица страниц, выводим заголовок
+    if (is_root) {
+        printf("root page table at %p\n", pt);
+    }
+
+    // проходим по всем записям таблицы страниц (всего 512 записей)
+    for (int idx = 0; idx < 512; idx++) {
+        pte_t entry = pt[idx];  // получаем запись таблицы страниц по индексу
+
+        // проверяем, действительна ли запись (PTE_V установлен)
+        if (entry & PTE_V)
         {
-            for (int j = level; j > 1; j--) printf(".. ");
-            uint64 pa = PTE2PA(pte);
-            printf("%d: pte %p pa %p ", i, pte, pa);
-            print_pte_flags(pte);
-            printf("\n");
-            if ((pte & (PTE_R | PTE_W | PTE_X)) == 0) vmprint((pagetable_t)pa, level + 1);
+            // если запись указывает на физическую страницу (установлены PTE_R, PTE_W или PTE_X)
+            if (entry & (PTE_R | PTE_W | PTE_X))
+            {
+                indent_level = 0;  // сбрасываем уровень вложенности для физической страницы
+                for (int indent = 2; indent > indent_level; indent--) printf(".. ");  // выводим отступы для наглядности
+                printf("..%d: pte %p pa %p\n", idx, entry, PTE2PA(entry));  // выводим индекс, PTE и физический адрес
+                indent_level = 2;  // восстанавливаем уровень вложенности
+            }
+            else
+            {
+                // если запись указывает на подтаблицу страниц (PTE_R, PTE_W и PTE_X не установлены)
+                uint64 subtable = PTE2PA(entry);  // получаем физический адрес подтаблицы
+                for (int indent = 2; indent > indent_level; indent--) printf(".. ");  // выводим отступы для наглядности
+                printf("..%d: pte %p pa %p\n", idx, entry, subtable);  // выводим индекс, PTE и физический адрес подтаблицы
+                indent_level--;  // увеличиваем уровень вложенности для подтаблицы
+                vmprint((pagetable_t) subtable, 0);  // рекурсивно вызываем vmprint для подтаблицы
+            }
         }
     }
 }
 
 // системный вызов для вывода таблицы страниц
-uint64 sys_vmprint(void)
-{
-    struct proc *p = myproc();
-    vmprint(p->pagetable, 1);
+uint64 sys_vmprint(void) {
+    vmprint(myproc()->pagetable, 1);
     return 0;
 }

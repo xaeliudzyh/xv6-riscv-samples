@@ -89,40 +89,39 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+// системный вызов для проверки доступа к страницам памяти и обнуления флага PTE_A
+uint64 sys_pgaccess(void) {
+    uint64 start_addr;
+    uint64 user_buffer;
+    int num_pages;
 
-// системный вызов для проверки и обнуления атрибута A
-uint64
-sys_pgaccess(void)
-{
-    uint64 page_addr, res_addr;
-    int size, npages;
-
-    // получить аргументы системного вызова
-    argaddr(0, &page_addr);
-    argint(1, &size);
-    argaddr(2, &res_addr);
-
-    // вычислить количество страниц
-    npages = (size + PGSIZE - 1) / PGSIZE; pagetable_t cur_pt = myproc()->pagetable;
-    // массив для хранения результатов доступа к страницам
-    char accessed[npages];
-    memset(accessed, 0, sizeof(accessed));
-    for (int i = 0; i < npages; ++i)
+    // получение аргументов системного вызова
+    argaddr(0, &start_addr), argint(1, &num_pages), argaddr(2, &user_buffer);
+    // получение таблицы страниц текущего процесса
+    pagetable_t pagetable = myproc()->pagetable;
+    // массив для хранения результатов проверки доступа
+    char access_status[num_pages];
+    // цикл по всем страницам
+    for (int page_idx = 0; page_idx < num_pages; page_idx++)
     {
-        pte_t *pte = walk(cur_pt, page_addr, 0);
-        if (pte && (*pte & PTE_A))
+        // получение PTE для текущей страницы
+        pte_t *pte_entry = walk(pagetable, start_addr + page_idx * PGSIZE, 0);
+        // проверка установленного флага PTE_A (доступ)
+        if (*pte_entry & PTE_A)
         {
-            // установить бит доступа для страницы
-            accessed[i] = 1;
-            // обнулить атрибут A
-            *pte &= ~PTE_A;
+            access_status[page_idx] = 1;  // страница была доступна
+            // обнуление флага PTE_A после проверки
+            *pte_entry &= ~PTE_A;
         }
-        page_addr += PGSIZE;
+        else
+            access_status[page_idx] = 0;  // доступ к странице не был зафиксирован
     }
 
-    // скопировать результаты в пространство пользователя
-    if (copyout(cur_pt, res_addr, (char *)accessed, sizeof(accessed)) < 0)
+    // копирование результатов проверки в пользовательское пространство
+    if (copyout(pagetable, user_buffer, access_status, sizeof(access_status)) < 0)
+        // ошибка копирования в пространство пользователя
         return -1;
 
+    // успешное выполнение системного вызова
     return 0;
 }
