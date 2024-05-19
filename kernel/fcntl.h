@@ -1,3 +1,4 @@
+#define O_NOFOLLOW 0x100 //не следовать символическим ссылкам при открытии файла
 #define O_RDONLY  0x000
 #define O_WRONLY  0x001
 #define O_RDWR    0x002
