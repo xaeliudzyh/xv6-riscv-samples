@@ -6,11 +6,11 @@
 #include "kernel/fs.h"
 
 char*
-fmtname(char *path)
+fmtname(char *path, int include_dir)
 {
   static char buf[DIRSIZ+1];
   char *p;
-
+  int n = 0; // количество добавленных символов
   // Find first character after last slash.
   for(p=path+strlen(path); p >= path && *p != '/'; p--)
     ;
@@ -19,16 +19,24 @@ fmtname(char *path)
   // Return blank-padded name.
   if(strlen(p) >= DIRSIZ)
     return p;
-  memmove(buf, p, strlen(p));
-  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
-  return buf;
+  // перемещаем имя файла в буфер
+  if (include_dir)
+  {
+      memmove(buf, "./", 2); // добавляем префикс "./" если include_dir установлен
+      n = 2; // увеличиваем add на 2 для учета добавленных символов
+  }
+  memmove(buf + n, p, strlen(p)); // перемещаем имя файла в буфер с учетом добавленных символов
+  memset(buf+strlen(p) + n, ' ', DIRSIZ-strlen(p) - n); // заполняем оставшееся место пробелами
+  // если были добавлены символы, добавляем null-терминатор
+  if (n) buf[n + strlen(p)] = 0;
+  return buf; // возвращаем буфер
 }
 
 void
 ls(char *path)
 {
-  char buf[512], *p, symlink_target[MAXPATH]; // буфер для хранения цели символической ссылки
-  int fd,symlink_target_len; // длина цели символической ссылки
+  char buf[512], *p; // буфер для хранения цели символической ссылки
+  int fd; // длина цели символической ссылки
   struct dirent de;
   struct stat st;
 
@@ -38,29 +46,23 @@ ls(char *path)
     return;
   }
 
-  if(fstat(fd, &st) < 0){
+  if(fstat(fd, &st) < 0)
+  {
     fprintf(2, "ls: cannot stat %s\n", path);
     close(fd);
     return;
   }
-
+  char link_target[MAXPATH]; // массив для хранения цели символической ссылки
   switch(st.type){
   case T_DEVICE:
   case T_SYMLINK:
-      // попытка чтения цели символической ссылки
-      if ((symlink_target_len = readlink(path, symlink_target)) < 0) printf("%s %d %d %l --> unknown target\n", fmtname(path), st.type, st.ino, st.size);
-      else
-      {
-          if (symlink_target_len < MAXPATH)
-          {
-              symlink_target[symlink_target_len] = '\0'; // добавление нуль-терминатора в конец буфера
-              printf("%s %d %d %l --> %s\n", fmtname(path), st.type, st.ino, st.size,
-                     symlink_target); // вывод информации о символической ссылке
-          }
-      }
+      // читаем цель символической ссылки
+      readlink(path, link_target);
+      // выводим информацию о символической ссылке, включая её цель
+      printf("%s %s %d %d %l\n", fmtname(path, 0), link_target, st.type, st.ino, st.size);
       break;
   case T_FILE:
-    printf("%s %d %d %l\n", fmtname(path), st.type, st.ino, st.size);
+    printf("%s %d %d %l\n", fmtname(path,0), st.type, st.ino, st.size);
     break;
 
   case T_DIR:
@@ -84,15 +86,12 @@ ls(char *path)
       }
       if (st.type == T_SYMLINK)
       {
-          // показать цель ссылки
-          if ((symlink_target_len = readlink(path, symlink_target)) < 0) printf("%s %d %d %l --> unknown target\n", fmtname(path), st.type, st.ino, st.size);
-          else
-          {
-              if (symlink_target_len < MAXPATH) symlink_target[symlink_target_len] = '\0'; // добавление нуль-терминатора
-              printf("%s %d %d %l --> %s\n", fmtname(path), st.type, st.ino, st.size, symlink_target); // вывод цели символической ссылки
-          }
+          readlink(fmtname(buf, 1), link_target); // читаем цель символической ссылки
+          link_target[st.size] = 0; // добавляем null-терминатор в конце строки
+          // выводим информацию о символической ссылке, включая её цель
+          printf("%s %s %d %d %l\n", fmtname(buf, 0), link_target, st.type, st.ino, st.size);
       }
-      else printf("%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      else printf("%s %d %d %d\n", fmtname(buf,0), st.type, st.ino, st.size);
 
     }
     break;
