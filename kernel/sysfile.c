@@ -304,7 +304,7 @@ create(char *path, short type, short major, short minor)
 uint64
 sys_open(void)
 {
-  char path[MAXPATH+1],temp_p[MAXPATH]; // для того, чтобы оставить место для нуль-терминатора
+  char path[MAXPATH],temp_p[MAXPATH];
   int fd, omode, timer=0;
   struct file *f;
   struct inode *ip;
@@ -316,7 +316,6 @@ sys_open(void)
   begin_op();
 
   long long path_length= strlen(path); // xranim dlinu puti
-  int indicator=path_length;;
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
@@ -329,12 +328,13 @@ sys_open(void)
       return -1;
     }
     ilock(ip);
-    short flag = ip->type;
+    //short flag = ip->type; debugging
+    memmove(temp_p,path,strlen(path)); // копируем путь в временный буфер
     if(!(omode & O_NOFOLLOW)) // проверяем, что флаг O_NOFOLLOW не установлен
     {
-      memmove(temp_p,path,path_length); // копируем путь в временный буфер
-      while (flag==T_SYMLINK)
+      while (ip->type==T_SYMLINK)
       {
+          int indicator=path_length;;
           while (!(path[indicator] == '/') && indicator >= 0)
           {
               path[indicator] = 0; // заменяем символ на нуль-терминатор
@@ -368,7 +368,6 @@ sys_open(void)
               return -1;
           }
           ilock(ip); // захватываем новый inode
-          flag = ip->type; // обновляем флаг
       }
     }
       if (omode != O_RDONLY && ip->type == T_DIR && omode != O_NOFOLLOW)
@@ -560,24 +559,17 @@ uint64 sys_symlink(void)
     if (argstr(0, link_target, MAXPATH) < 0 || argstr(1, link_name, MAXPATH) < 0) return -1; // ошибка, если не удалось получить аргументы
     begin_op();// начало операции файловой системы
 
-    // проверка, сделается ли новыый inode для символической ссылки
-    if ((inode_ptr = create(link_name, T_SYMLINK, 0, 0)))
-    {
-        inode_ptr->type = T_SYMLINK; // устанавливаем тип inode как символическая ссылка
-
-        // запись цели символической ссылки в inode
-        writei(inode_ptr, 0, (uint64) link_target, 0, strlen(link_target));
-
-        iunlockput(inode_ptr); // освобождаем inode
-        end_op();
-
-        return 0;
+    // создаем inode для символической ссылки
+    if ((inode_ptr = create(link_name, T_SYMLINK, 0, 0)) == 0) {
+        end_op(); // завершаем операцию в случае ошибки
+        return -1;
     }
-    else //если нет
-    {
-        end_op();
-        return -1; // ошибка
-    }
+    inode_ptr->type = T_SYMLINK; // устанавливаем тип inode как символическая ссылка
+    // записываем путь назначения в inode
+    writei(inode_ptr, 0, (uint64)link_target, 0, strlen(link_target));
+    iunlockput(inode_ptr); // разблокируем и отпускаем inode
+    end_op(); // завершаем операцию файловой системы
+    return 0;
 }
 
 // функция для чтения символической ссылки
