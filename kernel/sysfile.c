@@ -315,7 +315,6 @@ sys_open(void)
 
   begin_op();
 
-  long long path_length= strlen(path); // xranim dlinu puti
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
@@ -334,13 +333,13 @@ sys_open(void)
     {
       while (ip->type==T_SYMLINK)
       {
-          int indicator=path_length;;
-          while (!(path[indicator] == '/') && indicator >= 0)
+          int indicator=strlen(temp_p);;
+          while ((temp_p[indicator] != '/') && indicator >= 0)
           {
-              path[indicator] = 0; // заменяем символ на нуль-терминатор
+              temp_p[indicator] = 0; // заменяем символ на нуль-терминатор
               indicator--;
           }
-          if (indicator) path[indicator] = 0; // если не достигли начала строки, добавляем нуль-терминатор
+          if (indicator) temp_p[indicator] = 0; // если не достигли начала строки, добавляем нуль-терминатор
           char buf[MAXPATH]; // буфер для чтения содержимого символической ссылки
           readi(ip, 0, (uint64)buf, 0, ip->size);
           buf[ip->size] = 0;
@@ -370,7 +369,7 @@ sys_open(void)
           ilock(ip); // захватываем новый inode
       }
     }
-      if (omode != O_RDONLY && ip->type == T_DIR && omode != O_NOFOLLOW)
+      if (ip->type == T_DIR && !(omode == O_RDONLY || omode == O_NOFOLLOW))
       {// если файл это каталог, и флаги открытия не соответствуют условиям
           //if)
               iunlockput(ip);
