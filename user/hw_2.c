@@ -5,7 +5,11 @@
 
 
 int main(int argc, char *argv[]) {
-    int fd[2];
+    if (argc < 2){
+        fprintf(2, "Error: incorrect count of argument\n");
+        exit(-1);
+    }
+    int fd[2],st;
     // Создание канала
     if (pipe(fd) == -1) {
         fprintf(2, "Error: pipe process failed\n");
@@ -21,12 +25,20 @@ int main(int argc, char *argv[]) {
     if (pid > 0) {  // Родительский процесс
         close(fd[0]); // Закрытие конца канала для чтения
         // Запись аргументов командной строки в канал
+        int size_;
         for (int i = 1; i < argc; i++) {
-            write(fd[1], argv[i], strlen(argv[i]));
-            write(fd[1], "\n", 1);
+            size_ = strlen(argv[i]);
+            if (write(fd[1], argv[i], size_) == -1){
+                fprintf(2, "Error: cannot write to pipe\n");
+                exit(-1);
+            }
+            if (write(fd[1], "\n", 1) == -1){
+                fprintf(2, "Error: cannot write to pipe\n");
+                exit(-1);
+            }
         }
         close(fd[1]); // Закрытие конца канала для записи после отправки всех данных
-        wait(0);      // Ожидание завершения дочернего процесса
+        wait(&st);      // Ожидание завершения дочернего процесса
     } else {  // Дочерний процесс
         close(fd[1]); // Закрытие конца канала для записи
         char buffer[1024];
