@@ -36,3 +36,7 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+entry("create_mutex");
+entry("lock_mutex");
+entry("unlock_mutex");
+entry("destroy_mutex");

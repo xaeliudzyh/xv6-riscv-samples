@@ -6,8 +6,8 @@
 #include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
-#include "proc.h"
 #include "sleeplock.h"
+#include "proc.h"
 
 void
 initsleeplock(struct sleeplock *lk, char *name)

@@ -2,7 +2,7 @@
 #include "param.h"
 #include "memlayout.h"
 #include "riscv.h"
-#include "spinlock.h"
+#include "mutex.h"
 #include "proc.h"
 #include "defs.h"
 
@@ -282,12 +282,10 @@ fork(void)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
-
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
   }
-
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -295,33 +293,34 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
-
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
-
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
-
   safestrcpy(np->name, p->name, sizeof(p->name));
-
   pid = np->pid;
-
   release(&np->lock);
-
   acquire(&wait_lock);
   np->parent = p;
   release(&wait_lock);
-
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
-
+  acquire(&wait_lock);
+  for (int i = 0; i < NMUTEX; i++)
+  {
+      if (p->mutex_table[i] && p->mutex_table[i]->count > 0)
+      {
+          np->mutex_table[i] = p->mutex_table[i];
+          p->mutex_table[i]->count++;
+      }
+  }
+  release(&wait_lock);
   return pid;
 }
 
@@ -347,9 +346,16 @@ void
 exit(int status)
 {
   struct proc *p = myproc();
-
+  acquire(&p->lock);
+  for (int i = 0; i < NMUTEX; i++)
+  {
+      if (p->mutex_table[i] && p->mutex_table[i]->count > 0) p->mutex_table[i]->count--;
+      p->mutex_table[i] = 0;
+  }
+  release(&p->lock);
   if(p == initproc)
     panic("init exiting");
+
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

@@ -4,6 +4,7 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
+struct mutex;
 struct spinlock;
 struct sleeplock;
 struct stat;
@@ -70,6 +71,13 @@ void            log_write(struct buf*);
 void            begin_op(void);
 void            end_op(void);
 
+// mutex.c
+void mutinit(void);
+int create_mutex(void);
+int lock_mutex(int);
+int unlock_mutex(int);
+int destroy_mutex(int);
+
 // pipe.c
 int             pipealloc(struct file**, struct file**);
 void            pipeclose(struct pipe*, int);
@@ -106,6 +114,7 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+
 
 // swtch.S
 void            swtch(struct context*, struct context*);
