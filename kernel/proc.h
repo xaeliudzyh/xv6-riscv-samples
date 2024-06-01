@@ -1,7 +1,9 @@
 // Saved registers for kernel context switches.
+#ifndef PROC_H
+#define PROC_H
+
 #include "spinlock.h"
-#include "sleeplock.h"
-#include "mutex.h"
+
 struct context {
   uint64 ra;
   uint64 sp;
@@ -87,7 +89,7 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 // Per-process state
 struct proc {
   struct spinlock lock;
-
+  struct mutex* mutex_table[NMUTEX];
   // p->lock must be held when using these:
   enum procstate state;        // Process state
   void *chan;                  // If non-zero, sleeping on chan
@@ -107,5 +109,5 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  struct mutex * table_mutex[NOMUTEX];
 };
+#endif

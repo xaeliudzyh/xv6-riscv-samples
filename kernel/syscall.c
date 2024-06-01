@@ -2,10 +2,10 @@
 #include "param.h"
 #include "memlayout.h"
 #include "riscv.h"
-#include "spinlock.h"
 #include "proc.h"
 #include "syscall.h"
 #include "defs.h"
+#include "mutex.h"
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -101,10 +101,10 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
-extern uint64 sys_acquire_mutex(void);
 extern uint64 sys_create_mutex(void);
-extern uint64 sys_free_mutex(void);
-extern uint64 sys_release_mutex(void);
+extern uint64 sys_lock_mutex(void);
+extern uint64 sys_destroy_mutex(void);
+extern uint64 sys_unlock_mutex(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -131,9 +131,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]         sys_mkdir,
 [SYS_close]         sys_close,
 [SYS_create_mutex]  sys_create_mutex,
-[SYS_acquire_mutex] sys_acquire_mutex,
-[SYS_release_mutex] sys_release_mutex,
-[SYS_free_mutex]    sys_free_mutex,
+[SYS_lock_mutex]    sys_lock_mutex,
+[SYS_unlock_mutex]  sys_unlock_mutex,
+[SYS_destroy_mutex] sys_destroy_mutex,
 };
 
 void

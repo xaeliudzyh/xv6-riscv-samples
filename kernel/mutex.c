@@ -1,145 +1,112 @@
 //
 #include "types.h"
-#include "riscv.h"
-#include "defs.h"
 #include "param.h"
-#include "fs.h"
-#include "spinlock.h"
-#include "sleeplock.h"
-#include "stat.h"
+#include "memlayout.h"
+#include "riscv.h"
 #include "proc.h"
+#include "mutex.h"
+#include "defs.h"
 
-struct mutex mutex_table[NMUTEX];
-
-void mutinit(void)
+void
+mutinit(void)
 {
-    struct mutex *temp;
-    for (temp = mutex_table; temp < &mutex_table[NMUTEX]; temp++)
+    initlock(&mutex_table.lock, "mutex_table");
+    for (int i = 0; i < NMUTEX; i++)
+        initsleeplock(&mutex_table.mutex[i].lock, "mutex_i");
+}
+
+int
+create_mutex(void)
+{
+    int i = 0,flag = 0;
+    struct proc* p = myproc();
+    acquire(&p->lock);
+    acquire(&mutex_table.lock);
+    for (i = 0; i < NMUTEX; i++)
     {
-        initlock(&temp->sp_lock, "spinlock");
-        initsleeplock(&temp->sl_lock, "sleeplock");
-        temp->lock=0;
-        temp->pid=-1;
+        if (mutex_table.mutex[i].count < 1)
+        {
+            mutex_table.mutex[i].count++;
+            p->mutex_table[i] = mutex_table.mutex + i;
+            flag = 1;
+            break;
+        }
     }
-}
-
-int validate_mutex(int mut_desc)
-{
-    if (mut_desc < 0 || mut_desc >= NOMUTEX) return -1;
-    return 0;
-}
-
-int lock_mutex(int mut_desc)
-{
-    if (validate_mutex(mut_desc) == -1) return -1;
-    struct proc *process = myproc();
-    acquire(&process->lock);
-    struct mutex *mutex = process->table_mutex[mut_desc];
-    if (!mutex || holdingsleep(&mutex->sl_lock)) return -1;
-    uint process_id = process->pid;
-    release(&process->lock);
-    acquiresleep(&mutex->sl_lock);
-    acquire(&mutex->sp_lock);
-    mutex->pid = process_id;
-    release(&mutex->sp_lock);
-    return 0;
-}
-
-uint64 sys_acquire_mutex()
-{
-    int mut_desc; argint(0, &mut_desc);
-    return lock_mutex(mut_desc);
-}
-
-int unlock_mutex(int mut_desc)
-{
-    if (validate_mutex(mut_desc) == -1) return -1;
-    struct proc *process = myproc();
-    acquire(&process->lock);
-    struct mutex *mutex = process->table_mutex[mut_desc];
-    if (!mutex || !holdingsleep(&mutex->sl_lock)) return -1;
-    uint process_id = process->pid;
-    release(&process->lock);
-    acquire(&mutex->sp_lock);
-    if (process_id != mutex->pid)
+    if (!flag)
     {
-        release(&mutex->sp_lock);
+        release(&mutex_table.lock);
+        release(&p->lock);
         return -1;
     }
-    mutex->pid = -1;
-    release(&mutex->sp_lock);
-    releasesleep(&mutex->sl_lock);
+    release(&mutex_table.lock);
+    release(&p->lock);
+    return i;
+}
+
+int
+lock_mutex(int i)
+{
+    if (i < 0 || i >= NMUTEX || mutex_table.mutex[i].count < 1) return -1;
+    struct mutex* m = mutex_table.mutex + i;
+    acquiresleep(&m->lock);
     return 0;
 }
 
-uint64 sys_release_mutex()
+int
+unlock_mutex(int i)
 {
-    int mut_desc; argint(0, &mut_desc);
-    return unlock_mutex(mut_desc);
+    if (i < 0 || i >= NMUTEX || mutex_table.mutex[i].count < 1) return -1;
+    struct mutex* m = mutex_table.mutex + i;
+    releasesleep(&m->lock);
+    return 0;
 }
 
-int generate_mutex(void)
+int
+destroy_mutex(int i)
 {
-    struct proc* process = myproc();
-    int index = -1;
-    for (int i = 0; i < NMUTEX; ++i)
+    acquire(&mutex_table.lock);
+    if (i < 0 || i >= NMUTEX || mutex_table.mutex[i].count < 1)
     {
-        acquire(&mutex_table[i].sp_lock);
-        if (mutex_table[i].lock)
-        {
-            release(&mutex_table[i].sp_lock);
-            continue;
-        }
-        mutex_table[i].lock = 1;
-        acquire(&process->lock);
-        for (int j = 0; j < NOMUTEX; ++j)
-        {
-            if (!(process->table_mutex[j]))
-            {
-                process->table_mutex[j] = &mutex_table[i];
-                index = j;
-                break;
-            }
-        }
-        release(&process->lock);
-        release(&mutex_table[i].sp_lock);
-        if (index != -1) return index;
-    }
-    return -1;
-}
-
-uint64 sys_create_mutex()
-{
-    int descriptor = generate_mutex();
-    return descriptor;
-}
-
-// oсвобождение ресурсов мьютекса
-int destroy_mutex(int mut_desc)
-{
-    if (validate_mutex(mut_desc) == -1) return -1;
-    struct proc *process = myproc();
-    acquire(&process->lock);
-    struct mutex *mutex = process->table_mutex[mut_desc];
-    release(&process->lock);
-    if (!mutex) return -1;
-    process->table_mutex[mut_desc] = 0;
-    acquire(&mutex->sp_lock);
-    if (!(mutex->lock))
-    {
-        release(&mutex->sp_lock);
+        release(&mutex_table.lock);
         return -1;
     }
-    mutex->lock--;
-    release(&mutex->sp_lock);
-    if (holdingsleep(&mutex->sl_lock)) releasesleep(&mutex->sl_lock);
+    struct mutex* m = mutex_table.mutex + i;
+    if (m->lock.locked)
+        releasesleep(&m->lock);
+    m->count--;
+    myproc()->mutex_table[i] = 0;
+    release(&mutex_table.lock);
     return 0;
 }
 
-uint64 sys_free_mutex()
+uint64
+sys_create_mutex(void)
 {
-    int mut_desc; argint(0, &mut_desc);
-    return destroy_mutex(mut_desc);
+    return create_mutex();
+}
+
+uint64
+sys_lock_mutex(void)
+{
+    int n;
+    argint(0, &n);
+    return lock_mutex(n);
+}
+
+uint64
+sys_unlock_mutex(void)
+{
+    int n;
+    argint(0, &n);
+    return unlock_mutex(n);
+}
+
+uint64
+sys_destroy_mutex(void)
+{
+    int n;
+    argint(0, &n);
+    return destroy_mutex(n);
 }
 // Created by George Tsagol on 06.05.2024.
 //

@@ -20,7 +20,7 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
-#define SYS_create_mutex  22
-#define SYS_acquire_mutex 23
-#define SYS_release_mutex 24
-#define SYS_free_mutex    25
+#define SYS_create_mutex 22
+#define SYS_lock_mutex 23
+#define SYS_unlock_mutex 24
+#define SYS_destroy_mutex 25

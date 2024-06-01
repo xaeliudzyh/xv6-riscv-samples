@@ -2,7 +2,7 @@
 #include "param.h"
 #include "memlayout.h"
 #include "riscv.h"
-#include "spinlock.h"
+#include "mutex.h"
 #include "proc.h"
 #include "defs.h"
 
@@ -301,16 +301,6 @@ fork(void)
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
-//  int index;
-  for (i = 0; i < NOMUTEX; i++) {//struct mutex *current_mutex = p->table_mutex[index];
-      np->table_mutex[i] = p->table_mutex[i];
-      if (p->table_mutex[i])
-      {
-          acquire(&p->table_mutex[i]->sp_lock);
-          p->table_mutex[i]->lock++;
-          release(&p->table_mutex[i]->sp_lock);
-      }
-  }
   np->cwd = idup(p->cwd);
   safestrcpy(np->name, p->name, sizeof(p->name));
   pid = np->pid;
@@ -321,6 +311,16 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
+  acquire(&wait_lock);
+  for (int i = 0; i < NMUTEX; i++)
+  {
+      if (p->mutex_table[i] && p->mutex_table[i]->count > 0)
+      {
+          np->mutex_table[i] = p->mutex_table[i];
+          p->mutex_table[i]->count++;
+      }
+  }
+  release(&wait_lock);
   return pid;
 }
 
@@ -346,12 +346,15 @@ void
 exit(int status)
 {
   struct proc *p = myproc();
-
+  acquire(&p->lock);
+  for (int i = 0; i < NMUTEX; i++)
+  {
+      if (p->mutex_table[i] && p->mutex_table[i]->count > 0) p->mutex_table[i]->count--;
+      p->mutex_table[i] = 0;
+  }
+  release(&p->lock);
   if(p == initproc)
     panic("init exiting");
-  for (int i = 0; i < NOMUTEX; ++i)
-      if (p->table_mutex[i])
-          destroy_mutex(i);
 
 
   // Close all open files.
