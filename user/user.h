@@ -1,4 +1,5 @@
 struct stat;
+struct mutex;
 
 // system calls
 int fork(void);
@@ -22,10 +23,10 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-int generate_mut();
-int lock_mut(int);
-int unlock_mut(int);
-int destroy_mut(int);
+int create_mutex(void);
+int lock_mutex(int);
+int unlock_mutex(int);
+int destroy_mutex(int);
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

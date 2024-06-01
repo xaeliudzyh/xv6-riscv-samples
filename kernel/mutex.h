@@ -10,11 +10,6 @@ struct mutex {
     struct sleeplock lock;
 };
 
-struct {
-    struct spinlock lock;
-    struct mutex mutex[NMUTEX];
-} mutex_table;
-
 #endif
 // Created by George Tsagol on 06.05.2024.
 //

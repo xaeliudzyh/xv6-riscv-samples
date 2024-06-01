@@ -7,6 +7,13 @@
 #include "mutex.h"
 #include "defs.h"
 
+
+struct {
+    struct spinlock lock;
+    struct mutex mutex[NMUTEX];
+} mutex_table;
+
+
 void
 mutinit(void)
 {
