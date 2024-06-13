@@ -185,5 +185,15 @@ void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
 
+
+
+
+void            diagnostical_buf_init(void);
+void            write_in_buf(char);
+void            pr_msg(char*, ...);
+void            write_int(int, int, int);
+void            write_ptr(uint64);
+int             dmesg(char*);
+
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
