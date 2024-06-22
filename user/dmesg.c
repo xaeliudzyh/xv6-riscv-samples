@@ -15,6 +15,7 @@ int main(int argc, char *argv[])
     } while (n == -1); // повторяем, пока dmesg не вернет ненулевое значение
 
     printf("%s\n", c); // выводим с
+    free(c);
     exit(0);
 }
 

@@ -195,5 +195,13 @@ void            write_int(int, int, int);
 void            write_ptr(uint64);
 int             dmesg(char*);
 
+void 			protocol_init(void);
+int 			enable_protocol(int, int);
+int 			disable_protocol(int);
+int 			syscall_ticks(void);
+int 			interrupt_ticks(void);
+int 			switch_ticks(void);
+int 			exec_ticks(void);
+
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

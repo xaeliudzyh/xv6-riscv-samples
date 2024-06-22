@@ -30,8 +30,13 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
-  // записываем диагностическое сообщение в буфер, которое содержит id процесса и путь к исполняемому файлу
-  pr_msg("id = %d, name = %s", p->pid, path);
+  if (exec_ticks())
+  {
+      acquire(&p->lock);
+      // записываем диагностическое сообщение в буфер, которое содержит id процесса и путь к исполняемому файлу
+      pr_msg("id = %d, name = %s", p->pid, path);
+      release(&p->lock);
+  }
   begin_op();
 
   if((ip = namei(path)) == 0){
