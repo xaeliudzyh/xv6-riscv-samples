@@ -148,7 +148,7 @@ uartstart()
     
     int c = uart_tx_buf[uart_tx_r % UART_TX_BUF_SIZE];
     uart_tx_r += 1;
-    
+    if (interrupt_ticks()!=0)  pr_msg("UART interrupt num=%d, cause=%d", UART0_IRQ, c);
     // maybe uartputc() is waiting for space in the buffer.
     wakeup(&uart_tx_r);
     
