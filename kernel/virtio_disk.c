@@ -295,7 +295,7 @@ void
 virtio_disk_intr()
 {
   acquire(&disk.vdisk_lock);
-
+  if (interrupt_ticks()!=0) pr_msg("VIRTIO interrupt num=%d", VIRTIO0_IRQ);
   // the device won't raise another interrupt until we tell it
   // we've seen this interrupt, which the following line does.
   // this may race with the device writing new entries to

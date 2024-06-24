@@ -460,6 +460,10 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        if (switch_ticks())
+            // логирование информации о процессе, включая pid, имя, адрес дампа регистров и контекста
+            pr_msg("switch id=%d, name=%s, dump addr=%p, context addr=%p",
+                   p->pid, p->name, &p->trapframe, &c->context);
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
