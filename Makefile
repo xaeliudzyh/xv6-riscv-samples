@@ -136,7 +136,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_dmesg\
 	$U/_protocol\
-    $U/_from_hw3\
+	$U/_from_hw3\
 
 
 fs.img: mkfs/mkfs README $(UPROGS)
