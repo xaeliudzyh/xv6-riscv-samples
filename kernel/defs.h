@@ -8,6 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct mutex;
 
 // bio.c
 void            binit(void);
@@ -184,6 +185,18 @@ void            plic_complete(int);
 void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
+
+
+// mutex.c
+void            mutinit(void);
+void            acquire_mutex(struct mutex* mutex);
+void            release_mutex(struct mutex* mutex);
+int             holding_mutex(struct mutex* mutex);
+void            destroy_mutex(struct mutex* mutex);
+
+struct mutex *mutex_dup(struct mutex *mutex); // функция увеличивает счетчик доступа к сущ-му мьютексу, чтобы несколько процессов могли его использовать
+struct mutex *mutex_alloc(void); // функция выделяет и инициализирует неиспользуемый мьютекс из глобальной таблицы мьютексов, чтобы процесс мог начать использовать его для синхронизации
+
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

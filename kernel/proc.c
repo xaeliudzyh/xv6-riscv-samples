@@ -306,6 +306,10 @@ fork(void)
   for(i = 0; i < NOFILE; i++)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
+  // в fork'е добавляем дублирование мьютексов при создании нового процесса
+  for (int i = 0; i < NOMUTEX; i++)
+      if (p->open_mutex[i])  // если мьютекс используется родительским процессом
+          np->open_mutex[i] = mutex_dup(p->open_mutex[i]); //то дублируем мьютекс для дочернего процесса
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
@@ -359,8 +363,16 @@ exit(int status)
       p->ofile[fd] = 0;
     }
   }
-
-  begin_op();
+  //а в функции exit добавляем освобождение мьютексов при завершении процесса
+  for (int md = 0; md < NOMUTEX; md++)
+  {
+      if (p->open_mutex[md]) // если мьютекс используется процессом
+      {
+          struct mutex *mutex = p->open_mutex[md];  // сохраняем указатель на мьютекс
+          destroy_mutex(mutex);  // уничтожаем мьютекс, уменьшая счетчик доступа
+          p->open_mutex[md] = 0;  // очищаем запись о мьютексе в таблице процесса
+      }
+  } begin_op();
   iput(p->cwd);
   end_op();
   p->cwd = 0;

@@ -22,7 +22,10 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-
+int create_mutex(void);
+int acquire_mutex(int md);
+int release_mutex(int md);
+int destroy_mutex(int md);
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
